@@ -259,8 +259,8 @@
     flex: 1; overflow-y: auto; display: flex; justify-content: center;
     padding: 10px 8px;
   }
-  .ryuchu-svg-wrap { position: relative; }
-  .ryuchu-svg-wrap svg { display: block; }
+  .ryuchu-svg-wrap { position: relative; width: 100%; }
+  .ryuchu-svg-wrap > div { margin: 0 auto; }
   .ryuchu-tip {
     font-size: 11px; color: var(--gray-500); text-align: center;
     padding: 6px 0 10px; flex-shrink: 0;
@@ -686,35 +686,56 @@ function buildRyuchuHTML(meridianId) {
 }
 
 function openRyuchu(meridianId) {
-  const m = getMeridian(meridianId);
-  document.getElementById('ryuchuTitle').textContent = (m?.abbr || m?.name || '') + ' 流注図';
+  try {
+    const m = getMeridian(meridianId);
+    document.getElementById('ryuchuTitle').textContent = (m?.abbr || m?.name || '') + ' 流注図';
 
-  const r = buildRyuchuHTML(meridianId);
-  const wrap = document.getElementById('ryuchuSVGWrap');
+    const r = buildRyuchuHTML(meridianId);
+    const wrap = document.getElementById('ryuchuSVGWrap');
+    wrap.innerHTML = '';
 
-  if (typeof r === 'string') {
-    // 座標なし（準備中）の場合
-    wrap.innerHTML = r;
-  } else {
-    // 通常ケース：DOM操作でsrcをセット
-    wrap.innerHTML = `
-      ${r.progressMsg}
-      <div id="ryuchuImgWrap" style="position:relative;width:100%;max-width:420px;padding-bottom:${r.pct}%">
-        <img id="ryuchuImg" style="position:absolute;top:0;left:0;width:100%;height:100%;display:block;object-fit:fill">
-        <svg id="ryuchuSVG"
-             style="position:absolute;top:0;left:0;width:100%;height:100%"
-             viewBox="0 0 ${r.W} ${r.H}"
-             preserveAspectRatio="none"
-             xmlns="http://www.w3.org/2000/svg"
-             font-family="'Hiragino Sans','Noto Sans JP',sans-serif">
-          ${r.dotsSVG}
-        </svg>
-      </div>`;
-    // srcを別途セット（innerHTML経由で大容量base64を流さない）
-    document.getElementById('ryuchuImg').src = r.src;
+    if (typeof r === 'string') {
+      wrap.innerHTML = r;
+      document.getElementById('ryuchuOverlay').classList.add('open');
+      return;
+    }
+
+    // プログレスメッセージ
+    if (r.progressMsg) {
+      const p = document.createElement('div');
+      p.innerHTML = r.progressMsg;
+      wrap.appendChild(p);
+    }
+
+    // コンテナをJSで直接構築（innerHTML経由でのCSS競合を避ける）
+    const container = document.createElement('div');
+    container.style.cssText = 'position:relative;width:100%;max-width:420px;margin:0 auto;';
+
+    const img = document.createElement('img');
+    img.src = r.src;
+    img.style.cssText = 'display:block;width:100%;height:auto;';
+    img.onerror = function() {
+      wrap.innerHTML += '<p style="color:#e65100;padding:20px">画像の読み込みに失敗しました: ' + r.src + '</p>';
+    };
+
+    const svgWrapper = document.createElement('div');
+    svgWrapper.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
+    svgWrapper.innerHTML = `<svg viewBox="0 0 ${r.W} ${r.H}" preserveAspectRatio="none"
+        style="width:100%;height:100%;display:block"
+        xmlns="http://www.w3.org/2000/svg" font-family="'Hiragino Sans','Noto Sans JP',sans-serif">
+        ${r.dotsSVG}
+      </svg>`;
+
+    container.appendChild(img);
+    container.appendChild(svgWrapper);
+    wrap.appendChild(container);
+
+    document.getElementById('ryuchuOverlay').classList.add('open');
+  } catch (err) {
+    document.getElementById('ryuchuSVGWrap').innerHTML =
+      '<p style="color:#e65100;padding:20px">エラー: ' + err.message + '</p>';
+    document.getElementById('ryuchuOverlay').classList.add('open');
   }
-
-  document.getElementById('ryuchuOverlay').classList.add('open');
 }
 
 function closeRyuchu() {
